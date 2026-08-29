@@ -135,7 +135,8 @@ function dateStatus(expiration) {
   return { label: `${days}d fresh`, className: 'fresh', days }
 }
 
-function PantryApp() {
+function PantryApp({ user, onSignOut }) {
+  const userInitials = user?.email ? user.email.split('@')[0].slice(0, 2).toUpperCase() : 'JD'
   const [activeTab, setActiveTab] = useState('home')
   const [pantry, setPantry] = useState(() => JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'))
   const [recipes, setRecipes] = useState([])
@@ -259,7 +260,19 @@ function PantryApp() {
   function toggleSaved(title) { setSaved((items) => items.includes(title) ? items.filter((item) => item !== title) : [...items, title]) }
 
   return <main className={`new-shell theme-${theme} size-${textSize} ${compactMode ? 'compact-mode' : ''} ${highContrast ? 'high-contrast' : ''}`} style={{ '--text-scale': TEXT_SCALE[textSize] }}>
-    <header className="app-header"><div className="header-brand"><span className="brand-mark">rf</span><div><strong>recipe finder</strong><small>your everyday kitchen companion</small></div></div><div className="header-profile" aria-label="Profile">JD</div></header>
+    <header className="app-header">
+      <div className="header-brand">
+        <span className="brand-mark">rf</span>
+        <div>
+          <strong>recipe finder</strong>
+          <small>your everyday kitchen companion</small>
+        </div>
+      </div>
+      <div className="header-actions">
+        {onSignOut && <button type="button" className="header-signout" onClick={onSignOut}>Sign out</button>}
+        <div className="header-profile" aria-label="Profile">{userInitials}</div>
+      </div>
+    </header>
     <div className="page-body">
       {activeTab === 'home' && <HomeView pantry={pantry} freshCount={freshCount} soonCount={soonCount} expiredCount={expiredCount} onAdd={() => setShowAdd(true)} onPantry={() => setActiveTab('pantry')} onRecipes={() => setActiveTab('recipes')} onRemove={removeItem} onOpenSettings={() => setActiveTab('settings')} />}
       {activeTab === 'pantry' && <PantryView pantry={pantry} onAdd={() => setShowAdd(true)} onRemove={removeItem} onFindRecipes={() => { setQuery(pantry.map((item) => item.name).join(' ')); setActiveTab('recipes') }} />}

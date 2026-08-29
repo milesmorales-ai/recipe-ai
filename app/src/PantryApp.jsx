@@ -30,6 +30,17 @@ const NAV_ITEMS = [
   ['recipes', 'Recipes', '✦'],
   ['saved', 'Saved', '♡'],
 ]
+const THEME_KEY = 'recipe-finder-theme'
+const TEXT_SIZE_KEY = 'recipe-finder-text-size'
+const COMPACT_MODE_KEY = 'recipe-finder-compact-mode'
+const HIGH_CONTRAST_KEY = 'recipe-finder-high-contrast'
+const SHOW_TIPS_KEY = 'recipe-finder-show-tips'
+const NOTIFICATION_KEY = 'recipe-finder-notification-reminders'
+const TEXT_SCALE = {
+  small: 0.9,
+  medium: 1,
+  large: 1.12,
+}
 let embeddingPipeline
 
 function loadEmbeddingModel() {
@@ -139,6 +150,12 @@ function PantryApp() {
   const [semanticQuery, setSemanticQuery] = useState('')
   const [semanticStatus, setSemanticStatus] = useState('ready')
   const [semanticMessage, setSemanticMessage] = useState('')
+  const [theme, setTheme] = useState(() => localStorage.getItem(THEME_KEY) || 'light')
+  const [textSize, setTextSize] = useState(() => localStorage.getItem(TEXT_SIZE_KEY) || 'medium')
+  const [compactMode, setCompactMode] = useState(() => localStorage.getItem(COMPACT_MODE_KEY) === 'true')
+  const [highContrast, setHighContrast] = useState(() => localStorage.getItem(HIGH_CONTRAST_KEY) === 'true')
+  const [showTips, setShowTips] = useState(() => localStorage.getItem(SHOW_TIPS_KEY) !== 'false')
+  const [notificationReminders, setNotificationReminders] = useState(() => localStorage.getItem(NOTIFICATION_KEY) !== 'false')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -167,6 +184,12 @@ function PantryApp() {
 
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(pantry)) }, [pantry])
   useEffect(() => { localStorage.setItem('recipe-finder-saved', JSON.stringify(saved)) }, [saved])
+  useEffect(() => { localStorage.setItem(THEME_KEY, theme) }, [theme])
+  useEffect(() => { localStorage.setItem(TEXT_SIZE_KEY, textSize) }, [textSize])
+  useEffect(() => { localStorage.setItem(COMPACT_MODE_KEY, String(compactMode)) }, [compactMode])
+  useEffect(() => { localStorage.setItem(HIGH_CONTRAST_KEY, String(highContrast)) }, [highContrast])
+  useEffect(() => { localStorage.setItem(SHOW_TIPS_KEY, String(showTips)) }, [showTips])
+  useEffect(() => { localStorage.setItem(NOTIFICATION_KEY, String(notificationReminders)) }, [notificationReminders])
 
   const model = useMemo(() => {
     const frequency = new Map()
@@ -235,13 +258,14 @@ function PantryApp() {
   function removeItem(id) { setPantry((items) => items.filter((item) => item.id !== id)) }
   function toggleSaved(title) { setSaved((items) => items.includes(title) ? items.filter((item) => item !== title) : [...items, title]) }
 
-  return <main className="new-shell">
+  return <main className={`new-shell theme-${theme} size-${textSize} ${compactMode ? 'compact-mode' : ''} ${highContrast ? 'high-contrast' : ''}`} style={{ '--text-scale': TEXT_SCALE[textSize] }}>
     <header className="app-header"><div className="header-brand"><span className="brand-mark">rf</span><div><strong>recipe finder</strong><small>your everyday kitchen companion</small></div></div><div className="header-profile" aria-label="Profile">JD</div></header>
     <div className="page-body">
-      {activeTab === 'home' && <HomeView pantry={pantry} freshCount={freshCount} soonCount={soonCount} expiredCount={expiredCount} onAdd={() => setShowAdd(true)} onPantry={() => setActiveTab('pantry')} onRecipes={() => setActiveTab('recipes')} onRemove={removeItem} />}
+      {activeTab === 'home' && <HomeView pantry={pantry} freshCount={freshCount} soonCount={soonCount} expiredCount={expiredCount} onAdd={() => setShowAdd(true)} onPantry={() => setActiveTab('pantry')} onRecipes={() => setActiveTab('recipes')} onRemove={removeItem} onOpenSettings={() => setActiveTab('settings')} />}
       {activeTab === 'pantry' && <PantryView pantry={pantry} onAdd={() => setShowAdd(true)} onRemove={removeItem} onFindRecipes={() => { setQuery(pantry.map((item) => item.name).join(' ')); setActiveTab('recipes') }} />}
       {activeTab === 'recipes' && <RecipesView recipes={visibleResults} query={query} pantry={pantry} setQuery={(value) => { setQuery(value); setSemanticResults([]); setSemanticQuery('') }} loading={loading} error={error} saved={saved} onSave={toggleSaved} onSelect={setSelectedRecipe} onSemanticSearch={runSemanticMatch} semanticStatus={semanticStatus} semanticMessage={semanticMessage} semanticActive={semanticQuery === query && semanticResults.length > 0} />}
       {activeTab === 'saved' && <SavedView recipes={recipes.filter((recipe) => saved.includes(recipe.title))} pantry={pantry} saved={saved} onSave={toggleSaved} onSelect={setSelectedRecipe} />}
+      {activeTab === 'settings' && <SettingsView theme={theme} textSize={textSize} compactMode={compactMode} highContrast={highContrast} showTips={showTips} notificationReminders={notificationReminders} onThemeChange={setTheme} onTextSizeChange={setTextSize} onCompactModeChange={setCompactMode} onHighContrastChange={setHighContrast} onShowTipsChange={setShowTips} onNotificationRemindersChange={setNotificationReminders} />}
     </div>
     <nav className="bottom-nav" aria-label="Main navigation">{NAV_ITEMS.map(([id, label, icon]) => id === 'add' ? <button key={id} className="nav-add" onClick={() => setShowAdd(true)} aria-label="Add pantry item"><span>{icon}</span><small>{label}</small></button> : <button key={id} className={activeTab === id ? 'nav-item active' : 'nav-item'} onClick={() => setActiveTab(id)}><span>{icon}</span><small>{label}</small></button>)}</nav>
     {showAdd && <AddModal form={form} setForm={setForm} onSubmit={addItem} onClose={() => setShowAdd(false)} />}
@@ -249,8 +273,8 @@ function PantryApp() {
   </main>
 }
 
-function HomeView({ pantry, freshCount, soonCount, expiredCount, onAdd, onPantry, onRecipes, onRemove }) {
-  return <section className="view home-view"><div className="welcome"><div><p className="kicker">TUESDAY, AUGUST 19</p><h1>Good morning, Jamie.</h1><p>Let's make something delicious today.</p></div><span className="sun">☼</span></div><div className="home-grid"><div className="overview-panel"><div className="panel-title"><div><p className="kicker">YOUR PANTRY</p><h2>Keep it fresh.</h2></div><button className="text-button" onClick={onPantry}>See all →</button></div><div className="status-row"><StatusStat color="green" number={freshCount} label="Fresh" /><StatusStat color="yellow" number={soonCount} label="Use soon" /><StatusStat color="red" number={expiredCount} label="Expired" /></div>{pantry.length === 0 ? <div className="empty-pantry"><span>✚</span><p>Your pantry is waiting for its first ingredient.</p><button className="primary-button" onClick={onAdd}>Add an item</button></div> : <div className="mini-list">{pantry.slice(0, 3).map((item) => <PantryItem key={item.id} item={item} onRemove={onRemove} />)}</div>}</div><div className="inspire-panel"><p className="kicker">RECIPE MATCHING</p><h2>What's in your kitchen?</h2><p>Tell our local model what you have and discover recipes from your collection.</p><button className="primary-button" onClick={onRecipes}>Find a recipe <span>↗</span></button></div></div></section>
+function HomeView({ pantry, freshCount, soonCount, expiredCount, onAdd, onPantry, onRecipes, onRemove, onOpenSettings }) {
+  return <section className="view home-view"><div className="welcome"><div><p className="kicker">TUESDAY, AUGUST 19</p><h1>Good morning, Jamie.</h1><p>Let's make something delicious today.</p></div><div className="home-actions"><button type="button" className="settings-button" onClick={onOpenSettings} aria-label="Open settings">⚙</button><span className="sun">☼</span></div></div><div className="home-grid"><div className="overview-panel"><div className="panel-title"><div><p className="kicker">YOUR PANTRY</p><h2>Keep it fresh.</h2></div><button className="text-button" onClick={onPantry}>See all →</button></div><div className="status-row"><StatusStat color="green" number={freshCount} label="Fresh" /><StatusStat color="yellow" number={soonCount} label="Use soon" /><StatusStat color="red" number={expiredCount} label="Expired" /></div>{pantry.length === 0 ? <div className="empty-pantry"><span>✚</span><p>Your pantry is waiting for its first ingredient.</p><button className="primary-button" onClick={onAdd}>Add an item</button></div> : <div className="mini-list">{pantry.slice(0, 3).map((item) => <PantryItem key={item.id} item={item} onRemove={onRemove} />)}</div>}</div><div className="inspire-panel"><p className="kicker">RECIPE MATCHING</p><h2>What's in your kitchen?</h2><p>Tell our local model what you have and discover recipes from your collection.</p><button className="primary-button" onClick={onRecipes}>Find a recipe <span>↗</span></button></div></div></section>
 }
 
 function PantryView({ pantry, onAdd, onRemove, onFindRecipes }) { return <section className="view"><PageHeading eyebrow="YOUR KITCHEN" title="Pantry" action={<button className="primary-button small" onClick={onAdd}>+ Add item</button>} /><div className="legend"><span><i className="light green" /> Fresh</span><span><i className="light yellow" /> Use soon</span><span><i className="light red" /> Expired</span></div>{pantry.length ? <><div className="pantry-actions"><p>{pantry.length} item{pantry.length === 1 ? '' : 's'} ready to match.</p><button className="primary-button" onClick={onFindRecipes}>Find recipes with these items <span>↗</span></button></div><div className="pantry-grid">{pantry.map((item) => <PantryItem key={item.id} item={item} onRemove={onRemove} />)}</div></> : <div className="blank-slate"><span>▦</span><h2>A calm pantry starts here.</h2><p>Add ingredients with their expiration dates and we will help you use them at the right time.</p><button className="primary-button" onClick={onAdd}>Add your first item</button></div>}</section> }
@@ -258,6 +282,58 @@ function PantryView({ pantry, onAdd, onRemove, onFindRecipes }) { return <sectio
 function RecipesView({ recipes, query, pantry, setQuery, loading, error, saved, onSave, onSelect, onSemanticSearch, semanticStatus, semanticMessage, semanticActive }) { const intent = getFoodIntent(query); return <section className="view"><PageHeading eyebrow="FROM YOUR RECIPE COLLECTION" title="Recipes" /><div className="recipe-search"><span>⌕</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ingredients or describe a meal" aria-label="Search recipes" /></div><div className="ai-note"><span>✦</span><p><strong>Hybrid ML recommender</strong> first uses explainable ingredient coverage, then MiniLM embeddings understand related phrases such as “chicken breast”, “Roma tomato”, and “sea salt”.</p><button type="button" className="semantic-button" onClick={onSemanticSearch} disabled={!query.trim() || semanticStatus === 'loading'}>{semanticStatus === 'loading' ? 'Loading model...' : semanticActive ? 'Semantic match active' : 'Run semantic match'} <span>↗</span></button></div>{semanticStatus === 'error' && <div className="semantic-error" role="alert"><strong>AI semantic matching is unavailable.</strong><p>The MiniLM model did not load, so these are fallback keyword and ingredient-coverage results. No semantic AI score was applied.</p><button type="button" onClick={onSemanticSearch} disabled={!query.trim()}>Retry AI model</button></div>}{semanticMessage && semanticStatus !== 'error' && <p className="semantic-message">{semanticMessage}</p>}{query && intent.targets.length > 0 && <p className="interpreted-intent">Understood as: <strong>{intent.targets.join(', ')}</strong> · {intent.intensity > 1 ? 'heavier amount' : intent.intensity < 1 ? 'lighter amount' : 'regular amount'}</p>}{loading ? <div className="loading-state">Reading your recipe collection...</div> : error ? <p className="semantic-error" role="alert">{error}</p> : <div className="recipe-list">{recipes.slice(0, 12).map((recipe, index) => <RecipeCard key={`${recipe.title}-${index}`} recipe={recipe} pantry={pantry} saved={saved.includes(recipe.title)} onSave={onSave} onSelect={onSelect} />)}</div>}</section> }
 
 function SavedView({ recipes, pantry, saved, onSave, onSelect }) { return <section className="view"><PageHeading eyebrow="YOUR SHORTLIST" title="Saved recipes" />{recipes.length ? <div className="recipe-list">{recipes.map((recipe, index) => <RecipeCard key={`${recipe.title}-${index}`} recipe={recipe} pantry={pantry} saved={saved.includes(recipe.title)} onSave={onSave} onSelect={onSelect} />)}</div> : <div className="blank-slate"><span>♡</span><h2>Save recipes for later.</h2><p>Tap the heart on any recipe that sounds like you.</p></div>}</section> }
+
+function SettingsView({
+  theme,
+  textSize,
+  compactMode,
+  highContrast,
+  showTips,
+  notificationReminders,
+  onThemeChange,
+  onTextSizeChange,
+  onCompactModeChange,
+  onHighContrastChange,
+  onShowTipsChange,
+  onNotificationRemindersChange,
+}) {
+  return <section className="view settings-view">
+    <PageHeading eyebrow="APP SETTINGS" title="Preferences" />
+    <div className="settings-card">
+      <div className="setting-block">
+        <p className="kicker">THEME</p>
+        <div className="option-row" role="radiogroup" aria-label="Theme preference">
+          <button type="button" className={theme === 'light' ? 'choice-button active' : 'choice-button'} onClick={() => onThemeChange('light')}>Light</button>
+          <button type="button" className={theme === 'dark' ? 'choice-button active' : 'choice-button'} onClick={() => onThemeChange('dark')}>Dark</button>
+        </div>
+      </div>
+
+      <div className="setting-block">
+        <p className="kicker">TEXT SIZE</p>
+        <div className="slider-block">
+          <label htmlFor="font-size" className="sr-only">Text size</label>
+          <input id="font-size" type="range" min="0" max="2" step="1" value={textSize === 'small' ? 0 : textSize === 'medium' ? 1 : 2} onChange={(event) => {
+            const next = Number(event.target.value)
+            onTextSizeChange(next === 0 ? 'small' : next === 2 ? 'large' : 'medium')
+          }} />
+          <div className="size-labels"><span>Small</span><span>Medium</span><span>Large</span></div>
+        </div>
+      </div>
+
+      <div className="setting-block">
+        <p className="kicker">DISPLAY</p>
+        <label className="toggle-row"><input type="checkbox" checked={compactMode} onChange={(event) => onCompactModeChange(event.target.checked)} /> <span>Compact cards</span></label>
+        <label className="toggle-row"><input type="checkbox" checked={highContrast} onChange={(event) => onHighContrastChange(event.target.checked)} /> <span>High contrast mode</span></label>
+      </div>
+
+      <div className="setting-block">
+        <p className="kicker">HELP & REMINDERS</p>
+        <label className="toggle-row"><input type="checkbox" checked={showTips} onChange={(event) => onShowTipsChange(event.target.checked)} /> <span>Show kitchen tips</span></label>
+        <label className="toggle-row"><input type="checkbox" checked={notificationReminders} onChange={(event) => onNotificationRemindersChange(event.target.checked)} /> <span>Expiration reminders</span></label>
+      </div>
+    </div>
+  </section>
+}
 
 function PageHeading({ eyebrow, title, action }) { return <div className="page-heading"><div><p className="kicker">{eyebrow}</p><h1>{title}</h1></div>{action}</div> }
 function StatusStat({ color, number, label }) { return <div className="status-stat"><i className={`light ${color}`} /><strong>{number}</strong><span>{label}</span></div> }
